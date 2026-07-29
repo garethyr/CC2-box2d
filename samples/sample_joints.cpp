@@ -616,13 +616,14 @@ public:
 
 		m_enableSpring = false;
 		m_enableLimit = false;
-		m_enableMotor = false;
+		m_enableMotor = true;
 		m_hertz = 2.0f;
 		m_dampingRatio = 0.5f;
 		m_targetDegrees = 45.0f;
 		m_motorSpeed = 1.0f;
 		m_motorTorque = 1000.0f;
 
+		// Joint 1
 		{
 			b2BodyDef bodyDef = b2DefaultBodyDef();
 			bodyDef.type = b2_dynamicBody;
@@ -643,6 +644,7 @@ public:
 			jointDef.base.localFrameA.p = b2Body_GetLocalPoint( jointDef.base.bodyIdA, pivot );
 			jointDef.base.localFrameB.p = b2Body_GetLocalPoint( jointDef.base.bodyIdB, pivot );
 			jointDef.targetAngle = B2_PI * m_targetDegrees / 180.0f;
+			jointDef.targetType = m_targetType;
 			jointDef.enableSpring = m_enableSpring;
 			jointDef.hertz = m_hertz;
 			jointDef.dampingRatio = m_dampingRatio;
@@ -656,6 +658,43 @@ public:
 			m_jointId1 = b2CreateRevoluteJoint( m_worldId, &jointDef );
 
 			b2Joint_SetConstraintTuning( m_jointId1, 60.0f, 20.0f );
+		}
+
+		// Sub-Joint 1
+		{
+			b2BodyDef bodyDef = b2DefaultBodyDef();
+			bodyDef.type = b2_dynamicBody;
+			bodyDef.position = { -10.0f, 27.0f };
+			b2BodyId bodyId = b2CreateBody( m_worldId, &bodyDef );
+
+			b2ShapeDef shapeDef = b2DefaultShapeDef();
+			shapeDef.density = 1.0f;
+
+			b2Capsule capsule = { { 0.0f, -1.0f }, { 0.0f, 6.0f }, 0.5f };
+			b2CreateCapsuleShape( bodyId, &shapeDef, &capsule );
+
+			b2Vec2 pivot = { 0.0f, 6.0f };
+			b2RevoluteJointDef jointDef = b2DefaultRevoluteJointDef();
+			jointDef.base.bodyIdA = b2Joint_GetBodyA(m_jointId1);
+			jointDef.base.bodyIdB = bodyId;
+			jointDef.base.localFrameA.q = b2MakeRot( 0.5f * B2_PI );
+			jointDef.base.localFrameA.p = pivot;
+			jointDef.base.localFrameB.p = pivot;
+			jointDef.targetAngle = B2_PI * m_targetDegrees / 180.0f;
+			jointDef.targetType = m_targetType;
+			jointDef.enableSpring = m_enableSpring;
+			jointDef.hertz = m_hertz;
+			jointDef.dampingRatio = m_dampingRatio;
+			jointDef.motorSpeed = m_motorSpeed;
+			jointDef.maxMotorTorque = m_motorTorque;
+			jointDef.enableMotor = m_enableMotor;
+			jointDef.lowerAngle = -0.5f * B2_PI;
+			jointDef.upperAngle = 0.05f * B2_PI;
+			jointDef.enableLimit = m_enableLimit;
+
+			m_subjointId1 = b2CreateRevoluteJoint( m_worldId, &jointDef );
+
+			b2Joint_SetConstraintTuning( m_subjointId1, 60.0f, 20.0f );
 		}
 
 		{
@@ -704,36 +743,62 @@ public:
 	void UpdateGui() override
 	{
 		float fontSize = ImGui::GetFontSize();
-		float height = 8.0f * fontSize;
+		float height = 18.0f * fontSize;
 		ImGui::SetNextWindowPos( { 0.5f * fontSize, m_camera->height - height - 2.0f * fontSize }, ImGuiCond_Once );
-		ImGui::SetNextWindowSize( { 8.0f * fontSize, height } );
+		ImGui::SetNextWindowSize( { 18.0f * fontSize, height } );
 
 		ImGui::Begin( "Revolute Joint", nullptr, ImGuiWindowFlags_NoResize );
+
+		const char* targetTypes[] = { "Spring Target", "Uni-Directional Motor", "Bi-Directional Motor" };
+		int targetType = int( b2RevoluteJoint_GetTargetType( m_jointId1 ) );
+		if ( ImGui::Combo( "Target Type", &targetType, targetTypes, IM_ARRAYSIZE( targetTypes ) ) )
+		{
+			b2RevoluteJoint_SetTargetType( m_jointId1, b2JointTargetType( targetType ) );
+			b2Joint_WakeBodies( m_jointId1 );
+		}
 
 		if ( ImGui::Checkbox( "Limit", &m_enableLimit ) )
 		{
 			b2RevoluteJoint_EnableLimit( m_jointId1, m_enableLimit );
 			b2Joint_WakeBodies( m_jointId1 );
+			b2RevoluteJoint_EnableLimit( m_subjointId1, m_enableLimit );
+			b2Joint_WakeBodies( m_subjointId1 );
 		}
 
 		if ( ImGui::Checkbox( "Motor", &m_enableMotor ) )
 		{
 			b2RevoluteJoint_EnableMotor( m_jointId1, m_enableMotor );
 			b2Joint_WakeBodies( m_jointId1 );
+			b2RevoluteJoint_EnableMotor( m_subjointId1, m_enableMotor );
+			b2Joint_WakeBodies( m_subjointId1 );
 		}
 
 		if ( m_enableMotor )
 		{
-			if ( ImGui::SliderFloat( "Max Torque", &m_motorTorque, 0.0f, 5000.0f, "%.0f" ) )
+			if ( ImGui::SliderFloat( "Max Torque", &m_motorTorque, 0.0f, 50000.0f, "%.0f" ) )
 			{
 				b2RevoluteJoint_SetMaxMotorTorque( m_jointId1, m_motorTorque );
 				b2Joint_WakeBodies( m_jointId1 );
+				b2RevoluteJoint_SetMaxMotorTorque( m_subjointId1, m_motorTorque );
+				b2Joint_WakeBodies( m_subjointId1 );
 			}
 
 			if ( ImGui::SliderFloat( "Speed", &m_motorSpeed, -20.0f, 20.0f, "%.0f" ) )
 			{
 				b2RevoluteJoint_SetMotorSpeed( m_jointId1, m_motorSpeed );
 				b2Joint_WakeBodies( m_jointId1 );
+				b2RevoluteJoint_SetMotorSpeed( m_subjointId1, m_motorSpeed );
+				b2Joint_WakeBodies( m_subjointId1 );
+			}
+
+			if ( ( b2RevoluteJoint_GetTargetType( m_jointId1 ) == b2_unidirectionalMotorJointTargetType ||
+				   b2RevoluteJoint_GetTargetType( m_jointId1 ) == b2_bidirectionalMotorJointTargetType ) &&
+				 ImGui::SliderFloat( "Degrees", &m_targetDegrees, -180.0f, 180.0f, "%.0f" ) )
+			{
+				b2RevoluteJoint_SetTargetAngle( m_jointId1, B2_PI * m_targetDegrees / 180.0f );
+				b2Joint_WakeBodies( m_jointId1 );
+				b2RevoluteJoint_SetTargetAngle( m_subjointId1, B2_PI * m_targetDegrees / 180.0f );
+				b2Joint_WakeBodies( m_subjointId1 );
 			}
 		}
 
@@ -741,6 +806,8 @@ public:
 		{
 			b2RevoluteJoint_EnableSpring( m_jointId1, m_enableSpring );
 			b2Joint_WakeBodies( m_jointId1 );
+			b2RevoluteJoint_EnableSpring( m_subjointId1, m_enableSpring );
+			b2Joint_WakeBodies( m_subjointId1 );
 		}
 
 		if ( m_enableSpring )
@@ -749,18 +816,25 @@ public:
 			{
 				b2RevoluteJoint_SetSpringHertz( m_jointId1, m_hertz );
 				b2Joint_WakeBodies( m_jointId1 );
+				b2RevoluteJoint_SetSpringHertz( m_subjointId1, m_hertz );
+				b2Joint_WakeBodies( m_subjointId1 );
 			}
 
 			if ( ImGui::SliderFloat( "Damping", &m_dampingRatio, 0.0f, 2.0f, "%.1f" ) )
 			{
 				b2RevoluteJoint_SetSpringDampingRatio( m_jointId1, m_dampingRatio );
 				b2Joint_WakeBodies( m_jointId1 );
+				b2RevoluteJoint_SetSpringDampingRatio( m_subjointId1, m_dampingRatio );
+				b2Joint_WakeBodies( m_subjointId1 );
 			}
 
-			if ( ImGui::SliderFloat( "Degrees", &m_targetDegrees, -180.0f, 180.0f, "%.0f" ) )
+			if ( b2RevoluteJoint_GetTargetType( m_jointId1 ) == b2_springJointTargetType &&
+				 ImGui::SliderFloat( "Degrees", &m_targetDegrees, -180.0f, 180.0f, "%.0f" ) )
 			{
 				b2RevoluteJoint_SetTargetAngle( m_jointId1, B2_PI * m_targetDegrees / 180.0f );
 				b2Joint_WakeBodies( m_jointId1 );
+				b2RevoluteJoint_SetTargetAngle( m_subjointId1, B2_PI * m_targetDegrees / 180.0f );
+				b2Joint_WakeBodies( m_subjointId1 );
 			}
 		}
 
@@ -788,12 +862,14 @@ public:
 
 	b2BodyId m_ball;
 	b2JointId m_jointId1;
+	b2JointId m_subjointId1;
 	b2JointId m_jointId2;
 	float m_motorSpeed;
 	float m_motorTorque;
 	float m_hertz;
 	float m_dampingRatio;
 	float m_targetDegrees;
+	b2JointTargetType m_targetType = b2_bidirectionalMotorJointTargetType;
 	bool m_enableSpring;
 	bool m_enableMotor;
 	bool m_enableLimit;
