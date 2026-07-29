@@ -83,6 +83,18 @@ float b2RevoluteJoint_GetTargetAngle( b2JointId jointId )
 	return joint->revoluteJoint.targetAngle;
 }
 
+void b2RevoluteJoint_SetTargetType( b2JointId jointId, b2JointTargetType type )
+{
+	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_revoluteJoint );
+	joint->revoluteJoint.targetType = type;
+}
+
+b2JointTargetType b2RevoluteJoint_GetTargetType( b2JointId jointId )
+{
+	b2JointSim* joint = b2GetJointSimCheckType( jointId, b2_revoluteJoint );
+	return joint->revoluteJoint.targetType;
+}
+
 float b2RevoluteJoint_GetAngle( b2JointId jointId )
 {
 	b2World* world = b2GetWorld( jointId.world0 );
@@ -333,7 +345,7 @@ void b2SolveRevoluteJoint( b2JointSim* base, b2StepContext* context, bool useBia
 	if ( joint->enableSpring && fixedRotation == false )
 	{
 		float jointAngle = b2Rot_GetAngle( relQ );
-		float jointAngleDelta = b2UnwindAngle( jointAngle - joint->targetAngle );
+		float jointAngleDelta = b2UnwindAngle( jointAngle - ( joint->targetType == b2_springJointTargetType ? joint->targetAngle : 0.0F ) );
 
 		float C = jointAngleDelta;
 		float bias = joint->springSoftness.biasRate * C;
@@ -351,11 +363,46 @@ void b2SolveRevoluteJoint( b2JointSim* base, b2StepContext* context, bool useBia
 	// Solve motor constraint.
 	if ( joint->enableMotor && fixedRotation == false )
 	{
-		float Cdot = wB - wA - joint->motorSpeed;
-		float impulse = -joint->axialMass * Cdot;
-		float oldImpulse = joint->motorImpulse;
+		float relativeAngularVelocity = wB - wA;
 		float maxImpulse = context->h * joint->maxMotorTorque;
-		joint->motorImpulse = b2ClampFloat( joint->motorImpulse + impulse, -maxImpulse, maxImpulse );
+		float jointMotorSpeedToUse = joint->motorSpeed;
+
+		if ( joint->targetType == b2_bidirectionalMotorJointTargetType || joint->targetType == b2_unidirectionalMotorJointTargetType ) {
+			float jointAngle = b2Rot_GetAngle( relQ );
+			float distanceFromTargetAngle = b2UnwindAngle( jointAngle - joint->targetAngle );
+
+			float numberOfStepsToTarget = b2AbsFloat( distanceFromTargetAngle * context->inv_h / relativeAngularVelocity );
+			float maxVelocityChangePerStep = maxImpulse / joint->axialMass;
+			bool stepsToTargetLessThanVelocity = numberOfStepsToTarget * maxVelocityChangePerStep < b2AbsFloat( relativeAngularVelocity );
+			bool forwardOnlyMotorJointCloseToTarget = joint->targetType == b2_unidirectionalMotorJointTargetType && b2AbsFloat( distanceFromTargetAngle ) < 0.1f;
+			bool bidirectionalMotorJointMovingInOppositeDirectionFromTarget = joint->targetType == b2_bidirectionalMotorJointTargetType && signbit( distanceFromTargetAngle ) == signbit( jointMotorSpeedToUse );
+			if ( bidirectionalMotorJointMovingInOppositeDirectionFromTarget )
+			{
+				jointMotorSpeedToUse = -jointMotorSpeedToUse;
+			}
+			else if ( stepsToTargetLessThanVelocity || forwardOnlyMotorJointCloseToTarget )
+			{
+				jointMotorSpeedToUse = 0.0f;
+			}
+		}
+
+		float Cdot = relativeAngularVelocity - jointMotorSpeedToUse;
+		float impulse = -joint->axialMass * Cdot;
+
+		float distanceFromTargetAngle = b2UnwindAngle( b2Rot_GetAngle( relQ ) - joint->targetAngle );
+		if ( b2AbsFloat( distanceFromTargetAngle ) < 0.01F )
+		{
+			impulse *= 0.75F;
+		}
+		float oldImpulse = joint->motorImpulse;
+		if ( joint->targetType == b2_bidirectionalMotorJointTargetType && signbit( impulse ) != signbit( oldImpulse ) )
+		{
+			//TODO Attempting to lessen impulse to stop jittering
+			jointMotorSpeedToUse = -relativeAngularVelocity;
+			Cdot = relativeAngularVelocity - jointMotorSpeedToUse;
+			impulse = -joint->axialMass * relativeAngularVelocity * 0.95f;
+		}
+		joint->motorImpulse = b2ClampFloat( oldImpulse + impulse, -maxImpulse, maxImpulse );
 		impulse = joint->motorImpulse - oldImpulse;
 
 		wA -= iA * impulse;

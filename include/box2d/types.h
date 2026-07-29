@@ -700,6 +700,21 @@ typedef struct b2FilterJointDef
 /// @ingroup filter_joint
 B2_API b2FilterJointDef b2DefaultFilterJointDef( void );
 
+typedef enum b2JointTargetType
+{
+	// Aim for target angle with joint spring, default box2d behaviour.
+	b2_springJointTargetType = 0,
+
+	// Aim for target angle with motor, only going forwards.
+	b2_unidirectionalMotorJointTargetType = 1,
+
+	// Aim for target angle with motor, going forwards or backwards depending on which direction means a shorter distance to the target.
+	b2_bidirectionalMotorJointTargetType = 2,
+
+	/// number of body types
+	b2_jointTargetTypeCount,
+} b2JointTargetType;
+
 /// Prismatic joint definition
 /// Body B may slide along the x-axis in local frame A. Body B cannot rotate relative to body A.
 /// The joint translation is zero when the local frame origins coincide in world space.
@@ -721,6 +736,9 @@ typedef struct b2PrismaticJointDef
 	/// The target translation for the joint in meters. The spring-damper will drive
 	/// to this translation.
 	float targetTranslation;
+
+	// The target type, spring or motor. Spring is box2D standard behaviour.
+	b2JointTargetType targetType;
 
 	/// Enable/disable the joint limit
 	bool enableLimit;
@@ -759,6 +777,9 @@ typedef struct b2RevoluteJointDef
 	/// The target angle for the joint in radians. The spring-damper will drive
 	/// to this angle.
 	float targetAngle;
+
+	// The target type, spring or motor. Spring is box2D standard behaviour.
+	b2JointTargetType targetType;
 
 	/// Enable a rotational spring on the revolute hinge axis
 	bool enableSpring;

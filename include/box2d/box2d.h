@@ -1108,8 +1108,14 @@ B2_API float b2RevoluteJoint_GetSpringDampingRatio( b2JointId jointId );
 /// Set the revolute joint spring target angle, radians
 B2_API void b2RevoluteJoint_SetTargetAngle( b2JointId jointId, float angle );
 
-/// Get the revolute joint spring target angle, radians
+/// Get the revolute joint spring/motor target angle, radians
 B2_API float b2RevoluteJoint_GetTargetAngle( b2JointId jointId );
+
+// Set the revolute joint target angle type, see enum.
+B2_API void b2RevoluteJoint_SetTargetType( b2JointId jointId, b2JointTargetType type );
+
+// Get the revolute joint target angle type, see enum.
+B2_API b2JointTargetType b2RevoluteJoint_GetTargetType( b2JointId jointId );
 
 /// Get the revolute joint current angle in radians relative to the reference angle
 /// @see b2RevoluteJointDef::referenceAngle

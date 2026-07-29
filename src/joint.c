@@ -532,6 +532,7 @@ b2JointId b2CreateRevoluteJoint( b2WorldId worldId, const b2RevoluteJointDef* de
 	joint->revoluteJoint = empty;
 
 	joint->revoluteJoint.targetAngle = b2ClampFloat( def->targetAngle, -B2_PI, B2_PI );
+	joint->revoluteJoint.targetType = def->targetType;
 	joint->revoluteJoint.hertz = def->hertz;
 	joint->revoluteJoint.dampingRatio = def->dampingRatio;
 	joint->revoluteJoint.lowerAngle = def->lowerAngle;
