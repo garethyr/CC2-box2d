@@ -181,7 +181,10 @@ B2_ID_INLINE void b2StoreContactId( b2ContactId id, uint32_t values[3] )
 }
 
 /// Load a two uint64_t into a contact id.
-B2_ID_INLINE b2ContactId b2LoadContactId( uint32_t values[3] )
+////////////////////////////////////////////////////////////////////////
+// DO NOT DELETE THIS CHANGE WHEN UPDATING UNLESS IT'S FIXED BY ERIN! //
+////////////////////////////////////////////////////////////////////////
+B2_ID_INLINE b2ContactId b2LoadContactId( const uint32_t values[3] )
 {
 	b2ContactId id;
 	id.index1 = (int32_t)values[0];
